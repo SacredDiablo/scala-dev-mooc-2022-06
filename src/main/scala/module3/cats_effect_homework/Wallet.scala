@@ -3,7 +3,7 @@ package module3.cats_effect_homework
 import cats.effect.Sync
 import cats.implicits._
 import Wallet._
-
+import java.nio.file._
 // DSL управления электронным кошельком
 trait Wallet[F[_]] {
   // возвращает текущий баланс
@@ -25,9 +25,13 @@ trait Wallet[F[_]] {
 // - java.nio.file.Files.exists
 // - java.nio.file.Paths.get
 final class FileWallet[F[_]: Sync](id: WalletId) extends Wallet[F] {
-  def balance: F[BigDecimal] = ???
-  def topup(amount: BigDecimal): F[Unit] = ???
+  private val path = Paths.get(id)
+  private val read = Files.readString(path)
+
+  def balance: F[BigDecimal] =  Sync[F].delay(read).map(x => BigDecimal(x))
+  def topup(amount: BigDecimal): F[Unit] = Sync[F].delay(Files.write(path, balance.map(x => x + amount).toString.getBytes()))
   def withdraw(amount: BigDecimal): F[Either[WalletError, Unit]] = ???
+
 }
 
 object Wallet {

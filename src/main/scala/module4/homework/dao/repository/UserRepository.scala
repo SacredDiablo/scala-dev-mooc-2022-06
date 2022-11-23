@@ -13,7 +13,7 @@ import java.sql.SQLException
 import javax.sql.DataSource
 
 
-object UserRepository{
+object UserRepository {
 
 
     val dc = db.Ctx
@@ -42,34 +42,49 @@ object UserRepository{
         }
 
 
-        lazy val roleSchema = ???
+        lazy val roleSchema = quote {
+            querySchema[Role](""""Role"""")
+        }
 
-        lazy val userToRoleSchema = ???
+        lazy val userToRoleSchema = quote{
+            querySchema[UserToRole](""""UserToRole"""")
+        }
 
-        def findUser(userId: UserId): Result[Option[User]] = run(userSchema.filter(_.id == lift(userId.id)))
-          .map(_.headOption)
+        def findUser(userId: UserId): Result[Option[User]] = run(userSchema.filter(_.id == lift(userId.id))).map(_.headOption)
         
         def createUser(user: User): Result[User] = run(userSchema.insert(lift(user))).as(user)
         
-        def createUsers(users: List[User]): Result[List[User]] = ???
+        def createUsers(users: List[User]): Result[List[User]] = ZIO.foreach(users)(createUser)
+        /*в коде на занятии разбирали и был общий апдейт, но, наверно, правильно выбирать только нужных пользователей*/
+        def updateUser(user: User): Result[Unit] = run(userSchema.filter(_.id == lift(user.id)).update(lift(user))).unit
+
+        def deleteUser(user: User): Result[Unit] = run(userSchema.filter(_.id == lift(user.id)).delete).unit
         
-        def updateUser(user: User): Result[Unit] = ???
+        def findByLastName(lastName: String): Result[List[User]] = run(userSchema.filter(_.lastName == lift(lastName)))
+
+        def list(): Result[List[User]] = run(userSchema)
+
+        def userRoles(userId: UserId): Result[List[Role]] = run(
+            for{
+                role <- userToRoleSchema.filter(_.userId == lift(userId.id))
+                user <- roleSchema.join(_.code == role.roleId)
+            } yield user
+        )
+
+        def insertRoleToUser(roleCode: RoleCode, userId: UserId): Result[Unit] = run(
+            userToRoleSchema.insert(lift(UserToRole(roleCode.code, userId.id)))).unit
+        /*подумать - переписать list, чтобы передавать параметры и использовать его потом в данной функции*/
+        def listUsersWithRole(roleCode: RoleCode): Result[List[User]] = run(for {
+                role <- userToRoleSchema.filter(_.roleId == lift(roleCode.code))
+                user <- userSchema.join(_.id == role.userId)
+            } yield user)
         
-        def deleteUser(user: User): Result[Unit] = ???
-        
-        def findByLastName(lastName: String): Result[List[User]] = ???
-        
-        def list(): Result[List[User]] = ???
-        
-        def userRoles(userId: UserId): Result[List[Role]] = ???
-        
-        def insertRoleToUser(roleCode: RoleCode, userId: UserId): Result[Unit] = ???
-        
-        def listUsersWithRole(roleCode: RoleCode): Result[List[User]] = ???
-        
-        def findRoleByCode(roleCode: RoleCode): Result[Option[Role]] = ???
-                
+        def findRoleByCode(roleCode: RoleCode): Result[Option[Role]] = run(roleSchema.filter(_.code == lift(roleCode.code))).map(_.headOption)
+          /* - методы create а затем findBy по созданному пользователю не понятно на какой метод ссылается без захода в тесты
+          * первый запуск выдал одну ошибку, повторный - 6, третий ни одной. Что-то не так с тестами =))
+          *
+          * */
     }
 
-    val live: ULayer[UserRepository] = ???
+    val live: ULayer[UserRepository] = ZLayer.succeed(new ServiceImpl)
 }
