@@ -43,11 +43,11 @@ object UserRepository {
 
 
         lazy val roleSchema = quote {
-            querySchema[Role]("""Role""")
+            querySchema[Role](""""Role"""")
         }
 
         lazy val userToRoleSchema = quote{
-            querySchema[UserToRole]("""UserToRole""")
+            querySchema[UserToRole](""""UserToRole"""")
         }
 
         def findUser(userId: UserId): Result[Option[User]] = run(userSchema.filter(_.id == lift(userId.id))).map(_.headOption)
